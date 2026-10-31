@@ -254,22 +254,7 @@ function finishGame() {
 
 function startEngine() {
   try {
-    const engineBase =
-      "https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/";
-
-    const workerCode = `
-      self.Module = {
-        locateFile: function(path) {
-          return "${engineBase}" + path;
-        }
-      };
-      importScripts("${engineBase}stockfish-19-lite-single.js");
-    `;
-
-    const blob = new Blob([workerCode],
-      {type:"application/javascript"});
-
-    engine = new Worker(URL.createObjectURL(blob));
+    engine = new Worker("./stockfish-19-lite-single.js");
 
     engine.onmessage = function(event) {
       const message = String(event.data);
@@ -280,7 +265,7 @@ function startEngine() {
 
       if (message === "readyok") {
         engineReady = true;
-        announce("Skaakrekenaar gereed. Jy speel met wit.");
+        announce("Stockfish gereed! Jy speel met wit.");
       }
 
       if (message.startsWith("bestmove")) {
@@ -317,13 +302,13 @@ function startEngine() {
 
     engine.onerror = function() {
       engineReady = false;
-      announce("Kon nie die skaakrekenaar laai nie.");
+      announce("Stockfish kon nie begin nie. Kontroleer die engine-lêers.");
     };
 
     engine.postMessage("uci");
 
   } catch (error) {
-    announce("Probleem met die skaakrekenaar.");
+    announce("Probleem met Stockfish: " + error.message);
   }
 }
 
