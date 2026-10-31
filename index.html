@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="af">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hennie se Skaak</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #17212b;
+  color: white;
+  margin: 0;
+  padding: 15px;
+}
+main {
+  max-width: 650px;
+  margin: auto;
+}
+h1 { text-align: center; }
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  width: 100%;
+  max-width: 520px;
+  margin: 15px auto;
+  border: 3px solid #ddd;
+}
+.square {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(24px, 8vw, 48px);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.light { background: #f0d9b5; color: #171717; }
+.dark { background: #9b7653; color: #171717; }
+.square:focus { outline: 4px solid yellow; outline-offset: -4px; }
+#status, #history {
+  background: #263746;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+input, button {
+  font-size: 18px;
+  padding: 12px;
+  border-radius: 6px;
+}
+input { width: 100%; box-sizing: border-box; }
+button { cursor: pointer; }
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.controls button { flex: 1; }
+#history { min-height: 45px; }
+</style>
+</head>
+
+<body>
+<main>
+<h1>♟ Hennie se Skaak</h1>
+
+<p id="status" role="status" aria-live="polite">
+Laai skaakprogram...
+</p>
+
+<div id="board" role="group" aria-label="Skaakbord"></div>
+
+<h2>Maak jou skuif</h2>
+<form id="moveForm">
+<label for="moveInput">Tik jou skaakskuif, byvoorbeeld e4:</label>
+<input id="moveInput" type="text"
+placeholder="Tik e4 en druk Enter"
+autocomplete="off" autocapitalize="off">
+<div class="controls">
+<button type="submit">Maak skuif</button>
+</div>
+</form>
+
+<div class="controls">
+<button id="undo">Neem terug</button>
+<button id="restart">Nuwe wedstryd</button>
+</div>
+
+<h2>Skuifgeskiedenis</h2>
+<div id="history" aria-live="polite">
+Nog geen skuiwe nie.
+</div>
+</main>
+
+<script type="module">
+import { Chess } from
+"https://esm.sh/chess.js@1.4.0";
+
+const game = new Chess();
+
+const board = document.getElementById("board");
+const status = document.getElementById("status");
+const history = document.getElementById("history");
+const input = document.getElementById("moveInput");
+
+const pieces = {
+  wk:"♔", wq:"♕", wr:"♖", wb:"♗",
+  wn:"♘", wp:"♙",
+  bk:"♚", bq:"♛", br:"♜",
+  bb:"♝", bn:"♞", bp:"♟"
+};
+
+let engine = null;
+let engineReady = false;
+let thinking = false;
+let selectedSquare = null;
+
+function announce(message) {
+  status.textContent = message;
+}
+
+function renderBoard() {
+  board.innerHTML = "";
+
+  const position = game.board();
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const square = position[r][c];
+      const name = "abcdefgh"[c] + (8-r);
+
+      const button = document.createElement("button");
+      button.className = "square " +
+        ((r+c)%2 === 0 ? "light" : "dark");
+
+      button.setAttribute("aria-label",
+        name + (square ?
+        " " + (square.color === "w" ? "wit " : "swart ") +
+        pieceName(square.type) : " leeg"));
+
+      button.textContent = square ?
+        pieces[(square.color === "w" ? "w" : "b") +
+        square.type] : "";
+
+      button.addEventListener("click", () => {
+        selectSquare(name);
+      });
+
+      board.appendChild(button);
+    }
+  }
+
+  updateHistory();
+}
+
+function pieceName(type) {
+  return {
+    k:"koning", q:"dame", r:"toring",
+    b:"loper", n:"perd", p:"pion"
+  }[type];
+}
+
+function updateHistory() {
+  const moves = game.history();
+
+  if (!moves.length) {
+    history.textContent = "Nog geen skuiwe nie.";
+    return;
+  }
+
+  let text = "";
+  for (let i = 0; i < moves.length; i += 2) {
+    text += (Math.floor(i/2)+1) + ". " +
+      moves[i] + " ";
+    if (moves[i+1]) text += moves[i+1] + " ";
+  }
+
+  history.textContent = text;
+}
+
+function selectSquare(square) {
+  if (thinking || game.isGameOver()) return;
+
+  if (!selectedSquare) {
+    selectedSquare = square;
+    input.value = square;
+    announce("Gekies: " + square +
+      ". Kies nou die bestemming of tik 'n skuif.");
+    return;
+  }
+
+  const move = selectedSquare + square;
+  selectedSquare = null;
+  input.value = move;
+  makeMove(move);
+}
+
+function makeMove(notation) {
+  if (thinking || game.isGameOver()) return;
+
+  try {
+    const move = game.move(notation.trim());
+
+    if (!move) throw new Error("Ongeldige skuif");
+
+    renderBoard();
+
+    announce("Jy speel " + move.san +
+      ". Die rekenaar dink nou.");
+
+    input.value = "";
+    selectedSquare = null;
+
+    if (game.isGameOver()) {
+      finishGame();
+      return;
+    }
+
+    computerMove();
+
+  } catch (error) {
+    announce("Ongeldige skuif. Probeer weer, byvoorbeeld e4.");
+    input.focus();
+  }
+}
+
+function computerMove() {
+  if (!engine || !engineReady) {
+    announce("Die skaakrekenaar laai nog. Probeer weer.");
+    return;
+  }
+
+  thinking = true;
+  engine.postMessage("position fen " + game.fen());
+  engine.postMessage("go depth 10");
+}
+
+function finishGame() {
+  thinking = false;
+
+  if (game.isCheckmate()) {
+    announce("Skaakmat! " +
+      (game.turn() === "w" ? "Swart" : "Wit") +
+      " wen.");
+  } else if (game.isStalemate()) {
+    announce("Gelykop. Pat.");
+  } else if (game.isDraw()) {
+    announce("Die wedstryd is gelykop.");
+  }
+}
+
+function startEngine() {
+  try {
+    const engineBase =
+      "https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/";
+
+    const workerCode = `
+      self.Module = {
+        locateFile: function(path) {
+          return "${engineBase}" + path;
+        }
+      };
+      importScripts("${engineBase}stockfish-19-lite-single.js");
+    `;
+
+    const blob = new Blob([workerCode],
+      {type:"application/javascript"});
+
+    engine = new Worker(URL.createObjectURL(blob));
+
+    engine.onmessage = function(event) {
+      const message = String(event.data);
+
+      if (message === "uciok") {
+        engine.postMessage("isready");
+      }
+
+      if (message === "readyok") {
+        engineReady = true;
+        announce("Skaakrekenaar gereed. Jy speel met wit.");
+      }
+
+      if (message.startsWith("bestmove")) {
+        const uci = message.split(/\s+/)[1];
+
+        if (uci && uci !== "(none)") {
+          try {
+            const move = game.move({
+              from: uci.substring(0,2),
+              to: uci.substring(2,4),
+              promotion: uci[4] || "q"
+            });
+
+            renderBoard();
+            thinking = false;
+
+            if (game.isGameOver()) {
+              finishGame();
+            } else {
+              announce("Rekenaar speel " + move.san +
+                ". Jou beurt.");
+              input.focus();
+            }
+          } catch (error) {
+            thinking = false;
+            announce("Probleem met rekenaarskuif.");
+          }
+        } else {
+          thinking = false;
+          finishGame();
+        }
+      }
+    };
+
+    engine.onerror = function() {
+      engineReady = false;
+      announce("Kon nie die skaakrekenaar laai nie.");
+    };
+
+    engine.postMessage("uci");
+
+  } catch (error) {
+    announce("Probleem met die skaakrekenaar.");
+  }
+}
+
+document.getElementById("moveForm")
+  .addEventListener("submit", event => {
+    event.preventDefault();
+    makeMove(input.value);
+  });
+
+document.getElementById("undo")
+  .addEventListener("click", () => {
+    if (thinking) return;
+
+    game.undo();
+    game.undo();
+
+    selectedSquare = null;
+    renderBoard();
+    announce("Vorige beurt teruggeneem. Jou beurt.");
+    input.focus();
+  });
+
+document.getElementById("restart")
+  .addEventListener("click", () => {
+    game.reset();
+    thinking = false;
+    selectedSquare = null;
+    renderBoard();
+    announce("Nuwe wedstryd. Jy speel met wit.");
+    input.focus();
+  });
+
+renderBoard();
+startEngine();
+</script>
+</body>
+</html>
