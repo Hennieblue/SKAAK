@@ -79,20 +79,6 @@ input {width:100%;margin-bottom:10px;}
 </div>
 
 <div class="panel">
-  <label>Kies Stockfish se sterkte:</label>
-  <div class="choices">
-    <button id="weak" class="inactive" type="button">Swak</button>
-    <button id="medium" class="active" type="button">Medium</button>
-    <button id="strong" class="inactive" type="button">Sterk</button>
-  </div>
-  <p id="levelInfo">Medium – Skill 6 – 1 sekonde</p>
-</div>
-
-<div class="panel" id="status" role="status" aria-live="polite">
-  Stockfish laai...
-</div>
-
-<div class="panel">
   <h2>Jou skuif</h2>
   <form id="moveForm">
     <label for="moveInput">
@@ -116,6 +102,22 @@ input {width:100%;margin-bottom:10px;}
     Nog geen skuiwe nie.
   </div>
 </div>
+
+<div class="panel">
+  <label>Kies Stockfish se sterkte:</label>
+  <div class="choices">
+    <button id="weak" class="inactive" type="button">Swak</button>
+    <button id="medium" class="active" type="button">Medium</button>
+    <button id="strong" class="inactive" type="button">Sterk</button>
+  </div>
+  <p id="levelInfo">Medium – Skill 6 – 1 sekonde</p>
+</div>
+
+<div class="panel" id="status" role="status" aria-live="polite">
+  Stockfish laai...
+</div>
+
+
 
 <h2>Skaakbord</h2>
 <div id="board" role="group" aria-label="Skaakbord"></div>
