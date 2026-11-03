@@ -366,12 +366,29 @@ function makeHumanMove(notation) {
   }
 }
 
+function announceLatestTurn() {
+  const moves = game.history();
+
+  if (moves.length >= 2 && moves.length % 2 === 0) {
+    const turnNumber = moves.length / 2;
+    announce(
+      turnNumber + ". " +
+      moves[moves.length - 2] + " " +
+      moves[moves.length - 1]
+    );
+  }
+}
+
 function afterHumanMove(move) {
   selectedSquare = null;
   input.value = "";
   renderBoard();
 
-  announce("Jy speel: " + move.san);
+  if (playerColor === "b" && game.history().length % 2 === 0) {
+    announceLatestTurn();
+  } else {
+    announce("Jy speel: " + move.san);
+  }
 
   if (game.isGameOver()) {
     finishGame();
@@ -450,7 +467,12 @@ function startEngine() {
             if (game.isGameOver()) {
               finishGame();
             } else {
-              announce("Stockfish: " + move.san);
+              if (playerColor === "w" &&
+                  game.history().length % 2 === 0) {
+                announceLatestTurn();
+              } else {
+                announce("Stockfish: " + move.san);
+              }
               input.focus();
             }
           } catch(error) {
